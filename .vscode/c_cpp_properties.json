@@ -1,0 +1,56 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "compilerPath": "/usr/bin/g++",
+            
+            // Список директорий, где искать заголовочные файлы
+            "includePath": [
+                "${workspaceFolder}/**",              // Все файлы проекта
+                "${workspaceFolder}/include",         // Ваши заголовки
+                
+                // Системные библиотеки:
+                "/usr/include/eigen3",                // Eigen
+                "/usr/include/boost",                 // Boost
+                "/usr/include",                       // GSL и другие
+                "/usr/local/include",                 // matplotlibcpp.h
+                
+                // Python (узнайте версию: *)
+                "/usr/include/python3.12"
+            ],
+            
+            // Определения препроцессора
+            "defines": [
+                "BOOST_ALL_DYN_LINK",  // Использовать динамические библиотеки Boost
+                "_DEBUG",              // Для отладки
+                "LINUX"
+            ],
+            
+            // Настройки стандарта C++
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            
+            // Режим IntelliSense
+            "intelliSenseMode": "linux-gcc-x64",
+            
+            // Параметры компилятора для анализа кода
+            "compilerArgs": [
+                "-m64",
+                "-fPIC",
+                "-pthread"
+            ],
+            
+            // Максимальное количество файлов для анализа
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "/usr/include",
+                    "/usr/local/include"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+            }
+        }
+    ],
+    "version": 4
+}

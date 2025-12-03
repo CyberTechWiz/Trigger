@@ -1,0 +1,58 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Configure CMake",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B", "${workspaceFolder}/build",
+                "-S", "${workspaceFolder}",
+                "-DCMAKE_BUILD_TYPE=Debug"  // Для отладки
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Конфигурация CMake проекта"
+        },
+        {
+            "label": "Build Project",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "${workspaceFolder}/build",
+                "--config", "Debug",
+                "--parallel", "4"  // Использовать 4 ядра
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Сборка проекта"
+        },
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "command": "rm",
+            "args": [
+                "-rf", "${workspaceFolder}/build"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Триггерчик Run Program",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/MyScientificProject",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        }
+    ]
+}
