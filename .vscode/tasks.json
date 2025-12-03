@@ -45,7 +45,7 @@
         {
             "label": "Триггерчик Run Program",
             "type": "shell",
-            "command": "${workspaceFolder}/build/MyScientificProject",
+            "command": "${workspaceFolder}/build/Trigger",
             "group": "test",
             "presentation": {
                 "echo": true,

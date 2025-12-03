@@ -5,7 +5,7 @@
             "name": "Триггерчик Debug with GDB",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/MyScientificProject",
+            "program": "${workspaceFolder}/build/Trigger",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -27,7 +27,7 @@
             "miDebuggerPath": "/usr/bin/gdb"
         },
         {
-            "name": "Жестко отладить триггер",
+            "name": "Отладить триггер",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/${fileBasenameNoExtension}",
