@@ -1,281 +1,255 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
-#include <stdexcept>
-#include <algorithm>
-
-#include <Eigen/Dense>
+#include <string>
 #include <boost/numeric/odeint.hpp>
-#include <gsl/gsl_roots.h>
-#include <gsl/gsl_multiroots.h>
+#include "matplotlibcpp.h"
+// Подключаем решатель полиномов из GSL
+#include <gsl/gsl_poly.h>
+// Библиотеки Boost
+#include <boost/numeric/odeint.hpp>
+// Библиотека рисования
 #include "matplotlibcpp.h"
 
 namespace plt = matplotlibcpp;
-namespace odeint = boost::numeric::odeint;
+using namespace boost::numeric::odeint;
 
-//! Класс для моей системы с бистабильностью
-class BistableSystem {
-private:
-    double a;  // параметр a
-    double b;  // параметр b
-    
-public:
-    // Конструктор
-    BistableSystem(double a_val = 0.0, double b_val = 0.0) : a(a_val), b(b_val) {}
-    
-    // Установка параметров
-    void setParameters(double a_val, double b_val) {
-        a = a_val;
-        b = b_val;
-    }
-    
-    // Правая часть дифференциального уравнения: dx/dt = a + b*x - x^3
-    double equation(double x) const {
-        return a + b * x - x * x * x;
-    }
-    
-    // Производная для анализа устойчивости
-    double derivative(double x) const {
-        return b - 3.0 * x * x;
-    }
-    
-    // Найти корни уравнения (стационарные точки)
-    std::vector<double> findEquilibriumPoints() const {
-        std::vector<double> roots;
-        
-        // Для кубического уравнения: -x^3 + b*x + a = 0
-        // Используем численное решение через GSL
-        
-        if (b > 0) {
-            // При b > 0 могут быть 1 или 3 корня
-            double discriminant = 4 * b * b * b - 27 * a * a;
-            
-            if (discriminant > 0) {
-                // Три действительных корня
-                double step = 5.0;
-                double x_start = -step;
-                
-                for (int i = 0; i < 1000; i++) {
-                    double x1 = x_start;
-                    double x2 = x_start + 0.1;
-                    
-                    if (equation(x1) * equation(x2) < 0) {
-                        // Корень на интервале [x1, x2]
-                        double root = findRootBisection(x1, x2);
-                        if (root != root) continue; // проверка на NaN
-                        
-                        // Проверяем, нет ли уже такого корня
-                        bool duplicate = false;
-                        for (double r : roots) {
-                            if (fabs(r - root) < 1e-6) {
-                                duplicate = true;
-                                break;
-                            }
-                        }
-                        if (!duplicate) {
-                            roots.push_back(root);
-                        }
-                    }
-                    x_start += 0.1;
-                }
-            } else {
-                // Один действительный корень
-                // Используем простой поиск
-                double x = 0.0;
-                for (int i = 0; i < 100; i++) {
-                    x = x - equation(x) / derivative(x);
-                }
-                roots.push_back(x);
-            }
-        } else {
-            // При b <= 0 всегда один корень
-            double x = 0.0;
-            for (int i = 0; i < 100; i++) {
-                x = x - equation(x) / derivative(x);
-            }
-            roots.push_back(x);
-        }
-        
-        // Сортируем корни
-        std::sort(roots.begin(), roots.end());
-        return roots;
-    }
-    
-    // Анализ устойчивости точки равновесия
-    std::string analyzeStability(double x) const {
-        double deriv = derivative(x);
-        if (deriv < 0) {
-            return "Устойчивая";
-        } else if (deriv > 0) {
-            return "Неустойчивая";
-        } else {
-            return "Нейтральная (особая)";
-        }
-    }
-    
-    // Метод бисекции для нахождения корня
-    double findRootBisection(double left, double right) const {
-        double f_left = equation(left);
-        double f_right = equation(right);
-        
-        if (f_left * f_right > 0) {
-            return NAN; // Нет корня на интервале
-        }
-        
-        for (int i = 0; i < 100; i++) {
-            double mid = (left + right) / 2.0;
-            double f_mid = equation(mid);
-            
-            if (fabs(f_mid) < 1e-12) {
-                return mid;
-            }
-            
-            if (f_left * f_mid < 0) {
-                right = mid;
-                f_right = f_mid;
-            } else {
-                left = mid;
-                f_left = f_mid;
-            }
-        }
-        
-        return (left + right) / 2.0;
-    }
-    
-    // Геттеры для параметров
-    double getA() const { return a; }
-    double getB() const { return b; }
-};
+// --- ЧАСТЬ 1: ОПИСАНИЕ СИСТЕМЫ ---
+// Это "закон природы" для нашей программы.
+// Компьютер будет вызывать этот код тысячи раз, чтобы узнать "куда двигаться дальше".
+class BistableSystem
+{
+    double a; // Параметр сдвига
+    double b; // Параметр бифуркации
 
-// Класс для интегрирования системы
-class SystemIntegrator {
-private:
-    const BistableSystem& system;
-    
 public:
-    SystemIntegrator(const BistableSystem& sys) : system(sys) {}
-    
-    // Оператор для использования с Boost ODEINT
-    void operator()(const std::vector<double>& x, std::vector<double>& dxdt, double t) const {
-        dxdt[0] = system.getA() + system.getB() * x[0] - x[0] * x[0] * x[0];
+    // Конструктор: задаем параметры один раз при создании
+    BistableSystem(double param_a, double param_b) : a(param_a), b(param_b) {}
+
+    // Оператор (): Это стандарт Boost.
+    // x    - вход: текущее значение x (где мы сейчас)
+    // dxdt - выход: сюда мы записываем скорость (dx/dt)
+    // t    - время (в этом уравнении оно явно не участвует, но нужно для стандарта)
+    void operator()(const std::vector<double> &x, std::vector<double> &dxdt, double t)
+    {
+        // Наше уравнение: dx/dt = a + bx - x^3
+        // x[0], потому что вектор может хранить много переменных, но у нас одна.
+        dxdt[0] = a + b * x[0] - (x[0] * x[0] * x[0]);
     }
 };
 
-// Функция для построения графика
-void plotVectorField(const BistableSystem& system, const std::string& filename = "vector_field.png") {
-    const int n_points = 100;
-    std::vector<double> x_vals(n_points);
-    std::vector<double> y_vals(n_points);
-    
-    double x_min = -3.0;
-    double x_max = 3.0;
-    double dx = (x_max - x_min) / (n_points - 1);
-    
-    for (int i = 0; i < n_points; i++) {
-        x_vals[i] = x_min + i * dx;
-        y_vals[i] = system.equation(x_vals[i]);
+// --- ЧАСТЬ 2: НАБЛЮДАТЕЛЬ (ЗАПИСЬ ДАННЫХ) ---
+// Boost просто считает. Чтобы сохранить цифры для графика, нужен "Наблюдатель".
+// Он "подглядывает" за процессом на каждом шаге и записывает x и t в наши векторы.
+struct Observer {
+    std::vector<double>& t_vec;
+    std::vector<double>& x_vec;
+
+    Observer(std::vector<double>& t, std::vector<double>& x) : t_vec(t), x_vec(x) {}
+
+    void operator()(const std::vector<double> &x, double t) {
+        t_vec.push_back(t);
+        x_vec.push_back(x[0]);
     }
-    
-    plt::figure_size(800, 600);
-    plt::plot(x_vals, y_vals, "b-");
-    plt::axhline(0, 0, 1, {{"color", "black"}, {"linestyle", "--"}});
-    plt::axvline(0, 0, 1, {{"color", "black"}, {"linestyle", "--"}});
-    
-    // Отметить точки равновесия
-    auto equilibria = system.findEquilibriumPoints();
-    for (double eq : equilibria) {
-        plt::plot({eq}, {0}, "ro");
+};
+
+// Структура для хранения информации о найденной точке равновесия
+struct EquilibriumPoint {
+    double value;       // Координата x
+    bool is_stable;     // true = устойчиво, false = неустойчиво
+    std::string type;   // Текстовое описание
+};
+
+// Функция проверки устойчивости: lambda = b - 3x^2  - производная
+EquilibriumPoint analyze_point(double b, double x) {
+    double lambda = b - 3.0 * x * x;
+    EquilibriumPoint p;
+    p.value = x;
+    const double eps = 1e-12;  // Маленькое число для сравнения
+
+    if (std::abs(lambda) < eps) {
+        p.is_stable = false;  // Полуустойчивые технически не стабильны
+        p.type = "полуустойчивое";
+    } 
+
+    else if (lambda < 0) {
+        p.is_stable = true;
+        p.type = "устойчивое";
+    } else {
+        p.is_stable = false;
+        p.type = "неустойчивое";
     }
-    
-    plt::title("Векторное поле системы: dx/dt = a + bx - x^3");
-    plt::xlabel("x");
-    plt::ylabel("dx/dt");
-    plt::grid(true);
-    plt::save(filename);
-    plt::close();
+    return p;
 }
 
-int main() {
-    std::cout << "=== Программа анализа бистабильной системы ===\n";
-    std::cout << "Система: dx/dt = a + b*x - x^3\n\n";
-    
-    // Пример 1: Простая система
-    {
-        std::cout << "Пример 1: a = 0, b = 1\n";
-        BistableSystem system(0, 1);
-        
-        auto equilibria = system.findEquilibriumPoints();
-        std::cout << "Точки равновесия:\n";
-        for (double eq : equilibria) {
-            std::string stability = system.analyzeStability(eq);
-            std::cout << "  x = " << eq << " (" << stability << ")\n";
-        }
-        
-        plotVectorField(system, "example1.png");
-        std::cout << "График сохранен в example1.png\n\n";
+
+// Функция для генерации списка чисел (как в Python numpy.linspace)
+// Нам нужно создать диапазон x от -2 до 2, чтобы построить график
+std::vector<double> linspace(double start, double end, int num) {
+    std::vector<double> result;
+    double step = (end - start) / (num - 1);
+    for(int i = 0; i < num; ++i) {
+        result.push_back(start + step * i);
     }
+    return result;
+}
+
+// Анализ устойчивости (как в прошлом уроке)
+bool is_stable(double b, double x) {
+    double lambda = b - 3.0 * x * x;
+    return (lambda < 0);
+}
+
+int main()
+{
+    // 2. Задание значений параметров системы
+    double a = 0.0;
+    double b = 4.0;
+    double x0 = 0.1;
+    double t_end = 20;
+    BistableSystem system(a, b);
+
+    // 3. Задание начальных условий
+    // Начнем с x = 0.1. Система должна "скатиться" в устойчивое состояние
+    std::vector<double> x_state = {0.1};
+
+    // Векторы, куда будем писать историю
+    std::vector<double> times;
+    std::vector<double> x_vals;
+
+    // -------------------------------------------------------------------------------------------------------------------------------
+    // 1. Определение точек равновесия и их типа
+    // --- ПОДГОТОВКА ДЛЯ GSL ---
+    // GSL решает x^3 + c1*x^2 + c2*x + c3 = 0
+    // Наше уравнение: x^3 - b*x - a = 0
+    double x1, x2, x3;
+    int roots_count = gsl_poly_solve_cubic(0, -b, -a, &x1, &x2, &x3);
+
+    std::vector<EquilibriumPoint> points;
     
-    // Пример 2: Система с одной точкой равновесия
-    {
-        std::cout << "Пример 2: a = 1, b = 0\n";
-        BistableSystem system(1, 0);
-        
-        auto equilibria = system.findEquilibriumPoints();
-        std::cout << "Точки равновесия:\n";
-        for (double eq : equilibria) {
-            std::string stability = system.analyzeStability(eq);
-            std::cout << "  x = " << eq << " (" << stability << ")\n";
-        }
-        
-        plotVectorField(system, "example2.png");
-        std::cout << "График сохранен в example2.png\n\n";
+    std::cout << "\n--- ШАГ 1: АНАЛИЗ РАВНОВЕСИЙ ---\n";
+    if (roots_count >= 1) points.push_back(analyze_point(b, x1));
+    if (roots_count == 3) {
+        points.push_back(analyze_point(b, x2));
+        points.push_back(analyze_point(b, x3));
     }
-    
-    // Пример 3: Система с тремя точками равновесия
-    {
-        std::cout << "Пример 3: a = 0.1, b = 2\n";
-        BistableSystem system(0.1, 2);
-        
-        auto equilibria = system.findEquilibriumPoints();
-        std::cout << "Точки равновесия:\n";
-        for (double eq : equilibria) {
-            std::string stability = system.analyzeStability(eq);
-            std::cout << "  x = " << eq << " (" << stability << ")\n";
-        }
-        
-        // Интегрирование с помощью Boost ODEINT
-        std::vector<double> x = {0.5};  // начальное условие
-        odeint::runge_kutta4<std::vector<double>> stepper;
-        
-        std::vector<double> time_points;
-        std::vector<double> solution_points;
-        
-        double dt = 0.01;
-        double t = 0.0;
-        for (int i = 0; i < 1000; i++) {
-            time_points.push_back(t);
-            solution_points.push_back(x[0]);
-            
-            SystemIntegrator integrator(system);
-            stepper.do_step(integrator, x, t, dt);
-            t += dt;
-        }
-        
-        // Построение графика решения
-        plt::figure_size(800, 600);
-        plt::plot(time_points, solution_points, "b-");
-        plt::title("Решение системы (a=0.1, b=2, x0=0.5)");
-        plt::xlabel("Время t");
-        plt::ylabel("x(t)");
-        plt::grid(true);
-        plt::save("solution.png");
-        plt::close();
-        
-        std::cout << "График решения сохранен в solution.png\n";
-        
-        plotVectorField(system, "example3.png");
-        std::cout << "Векторное поле сохранено в example3.png\n";
+
+    // Вывод информации в консоль
+    for (const auto& p : points) {
+        std::cout << "Точка x = " << p.value << " -> " << p.type << "\n";
     }
+
+    // 3. Симуляция через Boost
+    std::cout << "\n--- ШАГ 2: СИМУЛЯЦИЯ ДИНАМИКИ ---\n";
+    BistableSystem sys(a, b);
+    std::vector<double> state = { x0 };
+
+    // -------------------------------------------------------------------------------------------------------------------------------
+    // 8. Расчет состояния системы в заданные моменты времени
+    // Интегрируем от t=0 до t=20 с шагом 0.1
+    // integrate сама вызывает нашу систему и наблюдателя
+    integrate(sys, state, 0.0, t_end, 0.1, Observer(times, x_vals));
+    std::cout << "Расчет завершен. Конечное состояние: " << state[0] << "\n";
+
+    // 4. Визуализация
+    std::cout << "\n--- ШАГ 3: ПОСТРОЕНИЕ ГРАФИКА ---\n";
     
+    // Настраиваем размер окна
+    plt::figure_size(1000, 600);
+
+    // Рисуем уровни равновесия (Горизонтальные линии)
+    for (const auto& p : points) {
+        std::vector<double> line_x(times.size(), p.value); // Линия на высоте корня
+        
+        // Зеленая пунктирная для устойчивых, Красная для неустойчивых
+        std::string style = p.is_stable ? "g--" : "r--"; 
+        
+        // Используем именованные аргументы для легенды
+        plt::named_plot("Равновесие " + std::to_string(p.value), times, line_x, style);
+    }
+
+    // Рисуем траекторию движения частицы (Жирная синяя линия)
+    plt::named_plot("Траектория x(t)", times, x_vals, "b-");
+    
+    // Оформление
+    plt::title("Динамика системы dx/dt = " + std::to_string(a) + " + " + std::to_string(b) + "x - x^3");
+    plt::xlabel("Время (t)");
+    plt::ylabel("Координата (x)");
+    plt::legend(); // Показать легенду
+    plt::grid(true);
+
+    plt::save("8-time_diagram.png");
+    std::cout << "График сохранен в файл 8-time_diagram.png\n";
+    // -------------------------------------------------------------------------------------------------------------------------------
+
+    // 10. Построение фазового портрета системы 
+    // Подготовка данных для кривой скорости
+    // Строим график для x от -2.5 до 2.5
+    std::vector<double> phase_x_vals = linspace(-2.5, 2.5, 100);
+    std::vector<double> phase_dxdt_vals; // Сюда запишем скорость
+
+    for(double x : phase_x_vals) {
+        // dx/dt = a + bx - x^3
+        double v = a + b*x - x*x*x;
+        phase_dxdt_vals.push_back(v);
+    }
+
+    // Ещё раз находим точки равновесия (через GSL), чтобы красиво их нарисовать
+    int roots = gsl_poly_solve_cubic(0, -b, -a, &x1, &x2, &x3);
+    
+    // Векторы для хранения координат точек (отдельно устойчивые, отдельно нет)
+    std::vector<double> stable_x, stable_y;
+    std::vector<double> unstable_x, unstable_y;
+
+    // Лямбда-функция для сортировки точек
+    auto classify_point = [&](double root) {
+        if (is_stable(b, root)) {
+            stable_x.push_back(root);
+            stable_y.push_back(0); // На фазовом портрете скорость равна 0
+        } else {
+            unstable_x.push_back(root);
+            unstable_y.push_back(0);
+        }
+    };
+
+    if (roots >= 1) classify_point(x1);
+    if (roots == 3) {
+        classify_point(x2);
+        classify_point(x3);
+    }
+
+    // 3. Рисуем
+    plt::figure_size(800, 600);
+
+    // Рисуем ось X (линия y=0) черным пунктиром
+    std::vector<double> zero_line(phase_x_vals.size(), 0.0);
+    plt::plot(phase_x_vals, zero_line, "k--");
+
+    // Рисуем саму функцию скорости (Синюю линию)
+    plt::plot(phase_x_vals, phase_dxdt_vals, "b-");
+
+    // Рисуем точки равновесия
+    // ro = red circle (красные круги), go = green circle (зеленые круги)
+    if (!unstable_x.empty()) 
+        plt::plot(unstable_x, unstable_y, "ro"); 
+    if (!stable_x.empty()) 
+        plt::plot(stable_x, stable_y, "go");
+
+    // Оформление
+    plt::title("Фазовый портрет: Скорость dx/dt от координаты x");
+    plt::xlabel("Координата x");
+    plt::ylabel("Скорость dx/dt");
+    plt::grid(true);
+
+    // Добавим поясняющий текст на график
+    // (Позиционирование текста примерное)
+    plt::text(-2.0, 1.0, "Скорость > 0\nДвижение вправо ->");
+    plt::text(1.0, -1.0, "Скорость < 0\n<- Движение влево");
+
+    plt::save("10-phase_portrait.png");
+    std::cout << "Фазовый портрет сохранен в 10-phase_portrait.png\n";
+    // -------------------------------------------------------------------------------------------------------------------------------
+
+
     return 0;
 }
