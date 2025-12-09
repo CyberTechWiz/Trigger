@@ -114,6 +114,13 @@ int main()
     double noise_val = 0.5;      // Сила шума (Пункт 12)
     BistableSystem system(a, b, noise_val);
 
+    std::cout << "Введите a (например, 2): ";
+    std::cin >> a;
+    std::cout << "Введите b (например, 2): ";
+    std::cin >> b;
+    std::cout << "Введите силу шума (например, 0.5): ";
+    std::cin >> noise_val;
+
 // 3. Задание начальных условий
     // Начнем с x = 0.1. Система должна "скатиться" в устойчивое состояние
     std::vector<double> x_state = {0.1};
@@ -255,8 +262,8 @@ int main()
     plt::grid(true);
     
     // Добавим подписи событий, если хотите
-    plt::text(t_control_start, -0.5, "Управление");
-    plt::text(t_perturbation, x_vals.back(), "Удар"); // Примерная позиция
+    // plt::text(t_control_start, -0.5, "Управление");
+    // plt::text(t_perturbation, x_vals.back(), "Удар"); // Примерная позиция
 
     plt::save("7-dynamics.png");
     std::cout << "График динамики сохранен в 7-dynamics.png\n";
@@ -273,6 +280,9 @@ int main()
 
     plt::save("7-control.png");
     std::cout << "График управления сохранен в 7-control.png\n";
+    times.clear();
+    x_vals.clear();
+    plt::clf();
 // -------------------------------------------------------------------------------------------------------------------------------
 
 // 8. Расчет состояния системы в заданные моменты времени
